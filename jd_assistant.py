@@ -418,6 +418,31 @@ class Assistant(object):
         page = requests.get(url=url, headers=self.headers)
         return page
 
+    def _get_item_detail_info(self, sku_id):
+        url = 'https://jshop-rec.jd.com/queryData.html'
+        payload = {
+            'SKU': sku_id,
+            '_': str(int(time.time() * 1000)),
+            'callback': 'jQuery{}'.format(random.randint(1000000, 9999999)),
+            'venderId': 1000085463  # return seller information with this param (can't be ignored)
+        }
+        headers = {
+            'User-Agent': self.user_agent,
+            'Referer': 'https://item.jd.com/100012043978.html',
+        }
+        resp_text = ''
+        try:
+            resp_text = requests.get(url=url, params=payload, headers=headers, timeout=self.timeout).text
+            resp_json = parse_json(resp_text)
+            shopRec = resp_json.get('shopRec')
+            goodList = shopRec.get('goodList')
+            for(goods) in goodList:
+                logger.info('查询到商品信息如下 %s', goods.get('wname'))
+        except Exception as e:
+            logger.error('查询商品详情 %s 信息发生异常, resp: %s, exception: %s', sku_id, resp_text, e)
+            return False
+
+
     def get_single_item_stock(self, sku_id, num, area):
         """获取单个商品库存状态
         :param sku_id: 商品id
@@ -1382,6 +1407,8 @@ class Assistant(object):
         items_dict = parse_sku_id(sku_ids)
         items_list = list(items_dict.keys())
         area_id = parse_area_id(area=area)
+        for(sku_id, count) in items_dict.items():
+            self._get_item_detail_info(sku_id)
 
         if not wait_all:
             logger.info('下单模式：%s 任一商品有货并且未下架均会尝试下单', items_list)
